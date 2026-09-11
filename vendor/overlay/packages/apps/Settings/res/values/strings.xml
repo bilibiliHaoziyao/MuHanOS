@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MuHanOS Overlay - Settings strings -->
+<resources>
+    <!-- About phone -->
+    <string name="firmware_version">MuHanOS版本号</string>
+    <string name="firmware_model">MuHanOS模型</string>
+    <string name="base_os">基线版本</string>
+    <string name="device_model">MuHanOS 12</string>
+    <string name="device_name">MuHanOS 12</string>
+    <string name="build_number">MuHanOS维护者: MuHan</string>
+    <string name="android_version_summary">MuHanOS 12 Beta26.9.11</string>
+    <string name="android_version_pending_update_summary">MuHanOS更新可用</string>
+</resources>

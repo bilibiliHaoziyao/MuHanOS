@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MuHanOS Overlay - Framework strings -->
+<resources>
+    <string name="config_maintenance_mode_label">MuHanOS 12 Beta26.9.11</string>
+</resources>
