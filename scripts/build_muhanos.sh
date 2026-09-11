@@ -7,8 +7,8 @@
 # - Ubuntu 20.04/22.04 (or similar Linux)
 # - 16GB+ RAM (32GB recommended)
 # - 150GB+ free disk space
-# - Go 1.17.x
-# - OpenJDK 11
+# - OpenJDK 11 (openjdk-11-jdk)
+# - Go 1.15.6 (AOSP 12.1 required version)
 # - AOSP 12 source code synced with repo
 
 set -e
@@ -17,35 +17,76 @@ echo "=========================================="
 echo " MuHanOS 12 GSI Build Script"
 echo " Version: Beta26.9.11"
 echo " Maintainer: MuHan"
+echo " Based on: AOSP android-12.1.0_r21"
 echo "=========================================="
 
 # ============================================
-# Environment Setup
+# Step 0: Environment (if needed)
 # ============================================
+if [ -f /etc/debian_version ]; then
+  echo ""
+  echo "[0/6] Installing build dependencies..."
+  sudo apt-get update -qq
+  sudo apt-get install -y openjdk-11-jdk python3 git repo curl zip unzip bc gnupg \
+    flex bison gperf libssl-dev libncurses5-dev zlib1g-dev libbz2-dev \
+    liblzma-dev libreadline-dev libsqlite3-dev libelf-dev libx11-dev \
+    libxml2-utils xsltproc clang llvm lld protobuf-compiler 2>/dev/null
+fi
+
+# ============================================
+# Step 1: Download Go 1.15.6 (AOSP 12.1 required)
+# ============================================
+echo ""
+echo "[1/6] Setting up Go 1.15.6..."
+if [ ! -d prebuilts/go/linux-x86 ]; then
+  mkdir -p prebuilts/go
+  curl -sSL -o /tmp/go1.15.tar.gz "https://dl.google.com/go/go1.15.6.linux-amd64.tar.gz"
+  tar -xzf /tmp/go1.15.tar.gz -C prebuilts/go/
+  mv prebuilts/go/go prebuilts/go/linux-x86
+fi
+
+export GOROOT=$(pwd)/prebuilts/go/linux-x86
+export PATH=$GOROOT/bin:$PATH
+echo "  Go version: $(go version)"
+
+# ============================================
+# Step 2: Java 11
+# ============================================
+echo ""
+echo "[2/6] Setting up Java 11..."
 export JAVA_HOME=${JAVA_HOME:-/usr/lib/jvm/java-11-openjdk-amd64}
-export GOROOT=${GOROOT:-$HOME/prebuilts/go/linux-x86}
-export PATH=$JAVA_HOME/bin:$GOROOT/bin:$PATH
-export TZ=Asia/Shanghai
-export OUT_DIR_COMMON_BASE=${OUT_DIR_COMMON_BASE:-$HOME/out}
-
-echo ""
-echo "[1/5] Checking environment..."
-echo "  JAVA_HOME: $JAVA_HOME"
-echo "  GOROOT: $GOROOT"
-echo "  Java: $(java -version 2>&1)"
-echo "  Go: $(go version)"
-echo ""
+export PATH=$JAVA_HOME/bin:$PATH
+echo "  Java version: $(java -version 2>&1 | head -1)"
 
 # ============================================
-# Source AOSP build environment
+# Step 3: MuHanOS vendor overlay
 # ============================================
-echo "[2/5] Sourcing AOSP build environment..."
+echo ""
+echo "[3/6] Installing MuHanOS vendor overlay..."
+MUHANOS_REPO="https://github.com/bilibiliHaoziyao/MuHanOS"
+if [ -d vendor/muhanos/.git ]; then
+  echo "  vendor/muhanos already exists, pulling latest..."
+  (cd vendor/muhanos && git pull)
+else
+  echo "  Cloning MuHanOS vendor overlay..."
+  git clone $MUHANOS_REPO vendor/muhanos_src
+  # Copy product configs
+  cp -r vendor/muhanos_src/vendor/muhanos vendor/muhanos
+fi
+echo "  MuHanOS overlay ready."
+
+# ============================================
+# Step 4: Source build env
+# ============================================
+echo ""
+echo "[4/6] Sourcing AOSP build environment..."
 source build/envsetup.sh
 
 # ============================================
-# Lunch MuHanOS GSI
+# Step 5: Lunch MuHanOS GSI
 # ============================================
-echo "[3/5] Lunching mu_hanos_gsi-userdebug..."
+echo ""
+echo "[5/6] Lunching mu_hanos_gsi-userdebug..."
 lunch mu_hanos_gsi-userdebug
 
 echo ""
@@ -57,53 +98,39 @@ echo " TARGET_BUILD_VARIANT: $TARGET_BUILD_VARIANT"
 echo " TARGET_ARCH: $TARGET_ARCH"
 echo " PRODUCT_BRAND: $PRODUCT_BRAND"
 echo " PRODUCT_MODEL: $PRODUCT_MODEL"
+echo " BUILD_ID: $BUILD_ID"
 echo ""
 
 # ============================================
-# Build GSI system image
+# Step 6: Build GSI
 # ============================================
-echo "[4/5] Building MuHanOS 12 GSI system image..."
-echo "  This may take 2-4 hours depending on your hardware."
+echo "[6/6] Building MuHanOS 12 GSI system image..."
+echo "  This may take 2-6 hours depending on your hardware."
 echo ""
 
-# Use all available cores for parallel build
 JOBS=$(nproc)
-echo "  Using $JOBS parallel jobs"
+echo "  Using -j$JOBS parallel jobs"
 echo ""
+
+OUT_DIR_COMMON_BASE=${OUT_DIR_COMMON_BASE:-$HOME/out}
 
 m -j$JOBS systemimage
 
 echo ""
-echo "[5/5] Build complete!"
+echo "=========================================="
+echo " BUILD COMPLETE!"
+echo "=========================================="
 echo ""
 
-# ============================================
-# Show build artifacts
-# ============================================
-echo "=========================================="
-echo " Build Artifacts"
-echo "=========================================="
-echo " Output directory: $OUT_DIR_COMMON_BASE/target/product/generic_arm64/"
-echo ""
-
-ls -lh $OUT_DIR_COMMON_BASE/target/product/generic_arm64/ 2>/dev/null | grep -E "system.*img|GSI.*zip" || echo "  Looking for artifacts..."
-find $OUT_DIR_COMMON_BASE/target/product/generic_arm64/ -name "system.img" 2>/dev/null | head -5
-find $OUT_DIR_COMMON_BASE/target/product/generic_arm64/ -name "*GSI*" 2>/dev/null | head -5
+# Show artifacts
+echo " Build artifacts:"
+ls -lh $OUT_DIR_COMMON_BASE/target/product/generic_arm64/system.img 2>/dev/null && \
+  echo "  -> system.img (GSI)" || find out -name "system.img" 2>/dev/null | head -3
 
 echo ""
-echo "=========================================="
-echo " Post-build: Flash to Redmi K20 Pro"
-echo "=========================================="
-echo " 1. Download the GSI image"
-echo " 2. Flash with fastboot:"
-echo "     fastboot flash system system.img"
-echo " 3. Reboot to bootloader, then boot the GSI:"
-echo "     fastboot reboot fastboot"
-echo "     fastboot --disable-verity --disable-verification flash system system.img"
-echo ""
-echo " Or test in Android Studio Emulator:"
-echo "  https://source.android.com/docs/setup/create/system"
+echo " Flash to Redmi K20 Pro:"
+echo "  fastboot flash system system.img"
 echo ""
 echo "=========================================="
-echo " MuHanOS 12 - Built by MuHan"
+echo " MuHanOS 12 Beta26.9.11 by MuHan"
 echo "=========================================="
