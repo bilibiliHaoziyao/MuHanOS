@@ -15,9 +15,13 @@ PRODUCT_PROPERTIES += \
     ro.muhanos.maintainer=MuHan \
     ro.muhanos.display.version=MuHanOS 12 Beta26.9.11
 
+# Clear inherited GSI-only variables that would conflict with custom product name
+PRODUCT_INSTALL_DEBUG_POLICY_TO_SYSTEM_EXT :=
+
 # Override GSI product info with MuHanOS branding
 PRODUCT_NAME := mu_hanos_gsi
-PRODUCT_DEVICE := mu_hanos_gsi
+# PRODUCT_DEVICE must match existing device config (generic_arm64 for GSI)
+PRODUCT_DEVICE := generic_arm64
 PRODUCT_BRAND := MuHanOS
 PRODUCT_MODEL := MuHanOS 12 GSI
 PRODUCT_MANUFACTURER := MuHan
